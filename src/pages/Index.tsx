@@ -1,5 +1,5 @@
 
-import { Brain, Briefcase, Users, Robot } from 'lucide-react';
+import { Brain, Briefcase, Users, Bot } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import FeatureCard from '../components/FeatureCard';
 
@@ -8,7 +8,7 @@ const Index = () => {
     {
       title: "AI Interview Coach",
       description: "Get real-time feedback on your interview performance with our advanced AI coaching system.",
-      icon: Robot,
+      icon: Bot,
     },
     {
       title: "Technical Prep",
