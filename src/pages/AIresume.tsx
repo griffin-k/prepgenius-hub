@@ -624,7 +624,7 @@ const AIresume = () => {
             </div>
 
             <div>
-              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Education</h3>
+              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Education & Qualifications</h3>
               {educationList.map((education, index) => (
                 <div key={index} className="mb-6">
                   <div className="flex justify-between">
