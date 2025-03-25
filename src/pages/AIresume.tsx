@@ -75,6 +75,9 @@ const AIresume = () => {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
+  const [isWorkExpanded, setIsWorkExpanded] = useState(false);
+  const [isEducationExpanded, setIsEducationExpanded] = useState(false);
+
   const resumeRef = useRef(null); // Reference for PDF generation
 
   const handleChange = (e) => {
