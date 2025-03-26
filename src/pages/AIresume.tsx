@@ -2,6 +2,12 @@ import { useState, useRef } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import Navbar from "../components/Navbar";
+import { Button } from "../components/ui/button";
+import { Card } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Badge } from "../components/ui/badge";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface WorkExperience {
   jobTitle: string;
@@ -11,7 +17,7 @@ interface WorkExperience {
   startYear: string;
   endMonth: string;
   endYear: string;
-  description: string;
+  currentlyWorking: boolean;
 }
 
 interface Education {
@@ -22,7 +28,7 @@ interface Education {
   startYear: string;
   endMonth: string;
   endYear: string;
-  description: string;
+  currentlyStudying: boolean;
 }
 
 const AIresume = () => {
@@ -46,8 +52,7 @@ const AIresume = () => {
     phone: "",
     jobTitle: "",
     education: "",
-    achievements: "",
-    coverLetterDetails: ""
+    achievements: ""
   });
 
   const [workExperiences, setWorkExperiences] = useState<WorkExperience[]>([{
@@ -58,7 +63,7 @@ const AIresume = () => {
     startYear: "",
     endMonth: "",
     endYear: "",
-    description: ""
+    currentlyWorking: false
   }]);
 
   const [educationList, setEducationList] = useState<Education[]>([{
@@ -69,26 +74,38 @@ const AIresume = () => {
     startYear: "",
     endMonth: "",
     endYear: "",
-    description: ""
+    currentlyStudying: false
   }]);
 
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [profileImage, setProfileImage] = useState<string | null>(null);
 
-  const [isWorkExpanded, setIsWorkExpanded] = useState(false);
-  const [isEducationExpanded, setIsEducationExpanded] = useState(false);
-
   const resumeRef = useRef(null); // Reference for PDF generation
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 5;
+
+  const steps = [
+    { number: 1, title: "Personal Info" },
+    { number: 2, title: "Work Experience" },
+    { number: 3, title: "Education" },
+    { number: 4, title: "Skills" },
+    { number: 5, title: "Preview" },
+  ];
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSkillSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const skill = e.target.value;
-    if (skill && selectedSkills.length < 5 && !selectedSkills.includes(skill)) {
-      setSelectedSkills([...selectedSkills, skill]);
+  const handleSkillSelect = (value: string) => {
+    if (selectedSkills.includes(value)) {
+      return;
     }
+    if (selectedSkills.length >= 5) {
+      alert("You can select a maximum of 5 skills");
+      return;
+    }
+    setSelectedSkills([...selectedSkills, value]);
   };
 
   const removeSkill = (skillToRemove: string) => {
@@ -114,7 +131,7 @@ const AIresume = () => {
     generatePDF();
   };
 
-  const handleWorkExperienceChange = (index: number, field: keyof WorkExperience, value: string) => {
+  const handleWorkExperienceChange = (index: number, field: keyof WorkExperience, value: string | boolean) => {
     const updatedExperiences = [...workExperiences];
     updatedExperiences[index] = {
       ...updatedExperiences[index],
@@ -132,7 +149,7 @@ const AIresume = () => {
       startYear: "",
       endMonth: "",
       endYear: "",
-      description: ""
+      currentlyWorking: false
     }]);
   };
 
@@ -140,7 +157,7 @@ const AIresume = () => {
     setWorkExperiences(workExperiences.filter((_, i) => i !== index));
   };
 
-  const handleEducationChange = (index: number, field: keyof Education, value: string) => {
+  const handleEducationChange = (index: number, field: keyof Education, value: string | boolean) => {
     const updatedEducation = [...educationList];
     updatedEducation[index] = {
       ...updatedEducation[index],
@@ -158,7 +175,7 @@ const AIresume = () => {
       startYear: "",
       endMonth: "",
       endYear: "",
-      description: ""
+      currentlyStudying: false
     }]);
   };
 
@@ -168,507 +185,576 @@ const AIresume = () => {
 
   const generatePDF = async () => {
     const input = resumeRef.current;
-    if (input) {
-      // Temporarily make the resume visible
-      input.style.display = "block";
-  
-      // Capture the element as an image
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Wait briefly for rendering
-      const canvas = await html2canvas(input);
-      const imgData = canvas.toDataURL("image/png");
-  
-      // Generate PDF
-      const pdf = new jsPDF("p", "mm", "a4");
-      pdf.addImage(imgData, "PNG", 10, 10, 190, 0);
-      pdf.save("resume.pdf");
-  
-      // Hide the resume again
-      input.style.display = "none";
+    if (!input) return;
+
+    try {
+      // Create PDF with A4 dimensions
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // A4 dimensions in mm
+      const pageWidth = 210;
+      const pageHeight = 297;
+      const margin = 10;
+
+      // Create a temporary container
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.left = '-9999px';
+      document.body.appendChild(tempContainer);
+
+      // Clone and style the resume content
+      const clone = input.cloneNode(true) as HTMLElement;
+      clone.style.width = '100%';
+      clone.style.backgroundColor = 'white';
+      tempContainer.appendChild(clone);
+
+      // Capture the content
+      const canvas = await html2canvas(clone, {
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
+
+      // Calculate dimensions to fit A4
+      const imgWidth = pageWidth - (2 * margin);
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(
+        canvas, 
+        'PNG',
+        margin,
+        margin,
+        imgWidth,
+        imgHeight,
+        undefined,
+        'FAST'
+      );
+      heightLeft -= (pageHeight - (2 * margin));
+
+      // Add subsequent pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(
+          canvas,
+          'PNG',
+          margin,
+          position + margin,
+          imgWidth,
+          imgHeight,
+          undefined,
+          'FAST'
+        );
+        heightLeft -= (pageHeight - (2 * margin));
+      }
+
+      // Clean up
+      document.body.removeChild(tempContainer);
+
+      // Save the PDF
+      pdf.save('resume.pdf');
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('There was an error generating your PDF. Please try again.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-primary/5">
-      <Navbar />
-      <div className="max-w-2xl mx-auto p-6 bg-white shadow-lg rounded-lg">
-        <h2 className="text-2xl font-bold mb-4">AI Resume & Cover Letter Generator</h2>
-        
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Profile Image Upload */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">Profile Image (Optional)</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="w-full p-2 border rounded"
-            />
-            {profileImage && (
-              <div className="mt-2">
-                <img
-                  src={profileImage}
-                  alt="Profile"
-                  className="w-32 h-32 object-cover rounded-full"
+    <div className="min-h-screen bg-gray-50">
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <Navbar />
+      </div>
+      <div className="container mx-auto px-4 py-8 mt-16">
+        <div className="max-w-6xl mx-auto">
+          {/* Stepper */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center">
+              {steps.map((step) => (
+                <div key={step.number} className="flex flex-col items-center">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      currentStep >= step.number
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {step.number}
+                  </div>
+                  <span className="mt-2 text-sm font-medium">{step.title}</span>
+                </div>
+              ))}
+            </div>
+            <div className="relative mt-4">
+              <div className="h-2 bg-gray-200 rounded">
+                <div
+                  className="h-full bg-blue-600 rounded transition-all duration-300"
+                  style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
                 />
               </div>
-            )}
+            </div>
           </div>
 
-          <input type="text" name="fullName" placeholder="Full Name" value={formData.fullName} onChange={handleChange} className="w-full p-2 border rounded" required />
-          <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="w-full p-2 border rounded" required />
-          <input type="text" name="phone" placeholder="Phone Number" value={formData.phone} onChange={handleChange} className="w-full p-2 border rounded" required />
-          <input type="text" name="jobTitle" placeholder="Job Title" value={formData.jobTitle} onChange={handleChange} className="w-full p-2 border rounded" required />
-          <textarea name="achievements" placeholder="Achievements (Optional)" value={formData.achievements} onChange={handleChange} className="w-full p-2 border rounded" />
-          <textarea name="coverLetterDetails" placeholder="Cover Letter Details (Why you are applying?)" value={formData.coverLetterDetails} onChange={handleChange} className="w-full p-2 border rounded" required />
-
-          {/* Work Experience Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Work Experience</h3>
-            {workExperiences.map((experience, index) => (
-              <div key={index} className="p-4 border rounded-lg space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Job Title</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Sales Manager"
-                      value={experience.jobTitle}
-                      onChange={(e) => handleWorkExperienceChange(index, 'jobTitle', e.target.value)}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">City/Town</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. San Francisco"
-                      value={experience.cityTown}
-                      onChange={(e) => handleWorkExperienceChange(index, 'cityTown', e.target.value)}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Employer</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. PwC"
-                    value={experience.employer}
-                    onChange={(e) => handleWorkExperienceChange(index, 'employer', e.target.value)}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={experience.startMonth}
-                        onChange={(e) => handleWorkExperienceChange(index, 'startMonth', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Month</option>
-                        {months.map(month => (
-                          <option key={month} value={month}>{month}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={experience.startYear}
-                        onChange={(e) => handleWorkExperienceChange(index, 'startYear', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Year</option>
-                        {years.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">End Date</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={experience.endMonth}
-                        onChange={(e) => handleWorkExperienceChange(index, 'endMonth', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Month</option>
-                        {months.map(month => (
-                          <option key={month} value={month}>{month}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={experience.endYear}
-                        onChange={(e) => handleWorkExperienceChange(index, 'endYear', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Year</option>
-                        {years.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <div className="border rounded">
-                    <div className="flex border-b p-2 gap-2">
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Bold"
-                      >
-                        B
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded italic"
-                        title="Italic"
-                      >
-                        I
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded underline"
-                        title="Underline"
-                      >
-                        U
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Bullet List"
-                      >
-                        •
-                      </button>
-                    </div>
-                    <textarea
-                      value={experience.description}
-                      onChange={(e) => handleWorkExperienceChange(index, 'description', e.target.value)}
-                      className="w-full p-2 border-none focus:ring-0"
-                      rows={4}
-                    />
-                  </div>
-                </div>
-
-                {workExperiences.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeWorkExperience(index)}
-                    className="text-red-600 hover:text-red-800"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Form Section */}
+            <Card className="p-6 shadow-lg rounded-xl">
+              <AnimatePresence mode="wait">
+                {currentStep === 1 && (
+                  <motion.div
+                    key="personal"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="space-y-6"
                   >
-                    Delete
-                  </button>
+                    <h2 className="text-2xl font-bold text-gray-800">Personal Information</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Full Name</label>
+                        <Input
+                          type="text"
+                          name="fullName"
+                          value={formData.fullName}
+                          onChange={handleChange}
+                          className="w-full"
+                          placeholder="John Doe"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Profile Image</label>
+                        <Input
+                          type="file"
+                          onChange={handleImageUpload}
+                          accept="image/*"
+                          className="w-full"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Email</label>
+                        <Input
+                          type="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          className="w-full"
+                          placeholder="john@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Phone</label>
+                        <Input
+                          type="tel"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleChange}
+                          className="w-full"
+                          placeholder="+1 234 567 8900"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium mb-1">Professional Title</label>
+                        <Input
+                          type="text"
+                          name="jobTitle"
+                          value={formData.jobTitle}
+                          onChange={handleChange}
+                          className="w-full"
+                          placeholder="Senior Software Engineer"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
-              </div>
-            ))}
-            
-            <button
-              type="button"
-              onClick={addWorkExperience}
-              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700"
-            >
-              Add another work experience
-            </button>
-          </div>
 
-          {/* Education Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold flex items-center">
-              <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z M5 11.5v4.5a2 2 0 002 2h10a2 2 0 002-2v-4.5" />
-              </svg>
-              Education and Qualifications
-            </h3>
-            {educationList.map((education, index) => (
-              <div key={index} className="p-4 border rounded-lg space-y-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Degree</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Bachelor of Science"
-                      value={education.degree}
-                      onChange={(e) => handleEducationChange(index, 'degree', e.target.value)}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">City/Town</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. San Francisco"
-                      value={education.cityTown}
-                      onChange={(e) => handleEducationChange(index, 'cityTown', e.target.value)}
-                      className="w-full p-2 border rounded"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">School</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. New York University"
-                    value={education.school}
-                    onChange={(e) => handleEducationChange(index, 'school', e.target.value)}
-                    className="w-full p-2 border rounded"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={education.startMonth}
-                        onChange={(e) => handleEducationChange(index, 'startMonth', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Month</option>
-                        {months.map(month => (
-                          <option key={month} value={month}>{month}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={education.startYear}
-                        onChange={(e) => handleEducationChange(index, 'startYear', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Year</option>
-                        {years.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
+                {currentStep === 2 && (
+                  <motion.div
+                    key="work"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="space-y-6"
+                  >
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold text-gray-800">Work Experience</h2>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">End Date</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={education.endMonth}
-                        onChange={(e) => handleEducationChange(index, 'endMonth', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Month</option>
-                        {months.map(month => (
-                          <option key={month} value={month}>{month}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={education.endYear}
-                        onChange={(e) => handleEducationChange(index, 'endYear', e.target.value)}
-                        className="p-2 border rounded"
-                      >
-                        <option value="">Year</option>
-                        {years.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <div className="border rounded">
-                    <div className="flex border-b p-2 gap-2">
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Bold"
-                      >
-                        B
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded italic"
-                        title="Italic"
-                      >
-                        I
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded underline"
-                        title="Underline"
-                      >
-                        U
-                      </button>
-                      <button
-                        type="button"
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="Bullet List"
-                      >
-                        •
-                      </button>
-                    </div>
-                    <textarea
-                      value={education.description}
-                      onChange={(e) => handleEducationChange(index, 'description', e.target.value)}
-                      className="w-full p-2 border-none focus:ring-0"
-                      rows={4}
-                    />
-                  </div>
-                </div>
-
-                {educationList.length > 1 && (
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => removeEducation(index)}
-                      className="text-red-600 hover:text-red-800"
+                    {workExperiences.map((experience, index) => (
+                      <Card key={index} className="p-4 space-y-4">
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => removeWorkExperience(index)}
+                            variant="destructive"
+                            size="sm"
+                            className="mb-2"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            placeholder="Job Title"
+                            value={experience.jobTitle}
+                            onChange={(e) => handleWorkExperienceChange(index, "jobTitle", e.target.value)}
+                          />
+                          <Input
+                            placeholder="Employer"
+                            value={experience.employer}
+                            onChange={(e) => handleWorkExperienceChange(index, "employer", e.target.value)}
+                          />
+                          <Input
+                            placeholder="City/Town"
+                            value={experience.cityTown}
+                            onChange={(e) => handleWorkExperienceChange(index, "cityTown", e.target.value)}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="col-span-2">
+                              <label className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={experience.currentlyWorking}
+                                  onChange={(e) => handleWorkExperienceChange(index, "currentlyWorking", e.target.checked)}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="text-sm text-gray-600">Currently working here</span>
+                              </label>
+                            </div>
+                            <select
+                              value={experience.startMonth}
+                              onChange={(e) => handleWorkExperienceChange(index, "startMonth", e.target.value)}
+                              className="w-full p-2 border rounded"
+                            >
+                              <option value="">Start Month</option>
+                              {months.map((month) => (
+                                <option key={month} value={month}>
+                                  {month}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={experience.startYear}
+                              onChange={(e) => handleWorkExperienceChange(index, "startYear", e.target.value)}
+                              className="w-full p-2 border rounded"
+                            >
+                              <option value="">Start Year</option>
+                              {years.map((year) => (
+                                <option key={year} value={year}>
+                                  {year}
+                                </option>
+                              ))}
+                            </select>
+                            {!experience.currentlyWorking && (
+                              <>
+                                <select
+                                  value={experience.endMonth}
+                                  onChange={(e) => handleWorkExperienceChange(index, "endMonth", e.target.value)}
+                                  className="w-full p-2 border rounded"
+                                >
+                                  <option value="">End Month</option>
+                                  {months.map((month) => (
+                                    <option key={month} value={month}>
+                                      {month}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={experience.endYear}
+                                  onChange={(e) => handleWorkExperienceChange(index, "endYear", e.target.value)}
+                                  className="w-full p-2 border rounded"
+                                >
+                                  <option value="">End Year</option>
+                                  {years.map((year) => (
+                                    <option key={year} value={year}>
+                                      {year}
+                                    </option>
+                                  ))}
+                                </select>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                    <Button
+                      onClick={addWorkExperience}
+                      variant="outline"
+                      className="w-full"
                     >
-                      Delete
-                    </button>
-                  </div>
+                      Add Work Experience
+                    </Button>
+                  </motion.div>
                 )}
-              </div>
-            ))}
-            
-            <button
-              type="button"
-              onClick={addEducation}
-              className="w-full p-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 flex items-center justify-center"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add another education
-            </button>
-          </div>
 
-          {/* Skills Selection */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Skills (Select up to 5)
-            </label>
-            <select
-              onChange={handleSkillSelect}
-              value=""
-              className="w-full p-2 border rounded"
-              disabled={selectedSkills.length >= 5}
-            >
-              <option value="">Select a skill</option>
-              {skillsList.map((skill) => (
-                <option key={skill} value={skill}>
-                  {skill}
-                </option>
-              ))}
-            </select>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {selectedSkills.map((skill) => (
-                <div
-                  key={skill}
-                  className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center"
-                >
-                  {skill}
-                  <button
-                    type="button"
-                    onClick={() => removeSkill(skill)}
-                    className="ml-2 text-blue-600 hover:text-blue-800"
+                {currentStep === 3 && (
+                  <motion.div
+                    key="education"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="space-y-6"
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
-            Generate Resume & Cover Letter
-          </button>
-        </form>
-
-        {/* Hidden Resume Section for PDF Generation */}
-        <div ref={resumeRef} className="hidden p-6 bg-white shadow-lg rounded-lg mt-4">
-          <div className="text-center mb-6">
-            {profileImage && (
-              <img
-                src={profileImage}
-                alt="Profile"
-                className="w-32 h-32 object-cover rounded-full mb-4 mx-auto"
-              />
-            )}
-            <h2 className="text-4xl font-bold text-black">{formData.fullName}</h2>
-            <p className="text-gray-600 text-lg">{formData.email} | {formData.phone}</p>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Job Title</h3>
-              <p className="text-xl text-black">{formData.jobTitle}</p>
-            </div>
-
-            <div>
-              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Work Experience</h3>
-              {workExperiences.map((experience, index) => (
-                <div key={index} className="mb-6">
-                  <div className="flex justify-between">
-                    <div>
-                      <h4 className="text-xl font-semibold text-black">{experience.jobTitle}</h4>
-                      <p className="text-gray-600">{experience.employer}</p>
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-2xl font-bold text-gray-800">Education</h2>
                     </div>
-                    <div className="text-right">
-                      <p className="text-gray-600">{experience.cityTown}</p>
-                      <p className="text-gray-600">
-                        {experience.startMonth} {experience.startYear} - {experience.endMonth} {experience.endYear}
-                      </p>
+                    {educationList.map((education, index) => (
+                      <Card key={index} className="p-4 space-y-4">
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => removeEducation(index)}
+                            variant="destructive"
+                            size="sm"
+                            className="mb-2"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            placeholder="Degree"
+                            value={education.degree}
+                            onChange={(e) => handleEducationChange(index, "degree", e.target.value)}
+                          />
+                          <Input
+                            placeholder="School"
+                            value={education.school}
+                            onChange={(e) => handleEducationChange(index, "school", e.target.value)}
+                          />
+                          <Input
+                            placeholder="City/Town"
+                            value={education.cityTown}
+                            onChange={(e) => handleEducationChange(index, "cityTown", e.target.value)}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="col-span-2">
+                              <label className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  checked={education.currentlyStudying}
+                                  onChange={(e) => handleEducationChange(index, "currentlyStudying", e.target.checked)}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="text-sm text-gray-600">Currently studying here</span>
+                              </label>
+                            </div>
+                            <select
+                              value={education.startMonth}
+                              onChange={(e) => handleEducationChange(index, "startMonth", e.target.value)}
+                              className="w-full p-2 border rounded"
+                            >
+                              <option value="">Start Month</option>
+                              {months.map((month) => (
+                                <option key={month} value={month}>
+                                  {month}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={education.startYear}
+                              onChange={(e) => handleEducationChange(index, "startYear", e.target.value)}
+                              className="w-full p-2 border rounded"
+                            >
+                              <option value="">Start Year</option>
+                              {years.map((year) => (
+                                <option key={year} value={year}>
+                                  {year}
+                                </option>
+                              ))}
+                            </select>
+                            {!education.currentlyStudying && (
+                              <>
+                                <select
+                                  value={education.endMonth}
+                                  onChange={(e) => handleEducationChange(index, "endMonth", e.target.value)}
+                                  className="w-full p-2 border rounded"
+                                >
+                                  <option value="">End Month</option>
+                                  {months.map((month) => (
+                                    <option key={month} value={month}>
+                                      {month}
+                                    </option>
+                                  ))}
+                                </select>
+                                <select
+                                  value={education.endYear}
+                                  onChange={(e) => handleEducationChange(index, "endYear", e.target.value)}
+                                  className="w-full p-2 border rounded"
+                                >
+                                  <option value="">End Year</option>
+                                  {years.map((year) => (
+                                    <option key={year} value={year}>
+                                      {year}
+                                    </option>
+                                  ))}
+                                </select>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                    <Button
+                      onClick={addEducation}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Add Education
+                    </Button>
+                  </motion.div>
+                )}
+
+                {currentStep === 4 && (
+                  <motion.div
+                    key="skills"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    className="space-y-6"
+                  >
+                    <h2 className="text-2xl font-bold text-gray-800">Skills</h2>
+                    <select
+                      onChange={(e) => handleSkillSelect(e.target.value)}
+                    >
+                      <option value="">Select a skill</option>
+                      {skillsList.map((skill) => (
+                        <option key={skill} value={skill}>
+                          {skill}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedSkills.map((skill) => (
+                        <Badge key={skill} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full flex items-center">
+                          {skill}
+                          <button
+                            type="button"
+                            onClick={() => removeSkill(skill)}
+                            className="ml-2 text-blue-600 hover:text-blue-800"
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="flex justify-between mt-6">
+                <Button
+                  onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+                  disabled={currentStep === 1}
+                  variant="outline"
+                >
+                  Previous
+                </Button>
+                <Button
+                  onClick={() => setCurrentStep(Math.min(totalSteps, currentStep + 1))}
+                  disabled={currentStep === totalSteps}
+                >
+                  {currentStep === totalSteps - 1 ? "Preview" : "Next"}
+                </Button>
+              </div>
+            </Card>
+
+            {/* Preview Section */}
+            <Card className="p-6 shadow-lg rounded-xl">
+              <div ref={resumeRef} className="bg-white p-8 rounded-lg">
+                <div className="text-center mb-6">
+                  {profileImage && (
+                    <img
+                      src={profileImage}
+                      alt="Profile"
+                      className="w-32 h-32 object-cover rounded-full mb-4 mx-auto"
+                    />
+                  )}
+                  <h2 className="text-4xl font-bold text-black">{formData.fullName}</h2>
+                  <p className="text-gray-600 text-lg">{formData.email} | {formData.phone}</p>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Job Title</h3>
+                    <p className="text-xl text-black">{formData.jobTitle}</p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Work Experience</h3>
+                    {workExperiences.map((experience, index) => (
+                      <div key={index} className="mb-6">
+                        <div className="flex justify-between">
+                          <div>
+                            <h4 className="text-xl font-semibold text-black">{experience.jobTitle}</h4>
+                            <p className="text-gray-600">{experience.employer}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-gray-600">{experience.cityTown}</p>
+                            <p className="text-gray-600">
+                              {experience.startMonth} {experience.startYear} 
+                              {experience.currentlyWorking ? 
+                                " - Present" : 
+                                ` - ${experience.endMonth} ${experience.endYear}`
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Education & Qualification</h3>
+                    {educationList.map((education, index) => (
+                      <div key={index} className="mb-6">
+                        <div className="flex justify-between">
+                          <div>
+                            <h4 className="text-xl font-semibold text-black">{education.degree}</h4>
+                            <p className="text-gray-600">{education.school}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-gray-600">{education.cityTown}</p>
+                            <p className="text-gray-600">
+                              {education.startMonth} {education.startYear}
+                              {education.currentlyStudying ? 
+                                " - Present" : 
+                                ` - ${education.endMonth} ${education.endYear}`
+                              }
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Skills</h3>
+                    <div className="flex flex-wrap gap-3 justify-start">
+                      {selectedSkills.map((skill) => (
+                        <span key={skill} className="bg-gray-100 text-black px-4 py-2 rounded-full text-base">
+                          {skill}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  <p className="mt-2 text-black">{experience.description}</p>
-                </div>
-              ))}
-            </div>
 
-            <div>
-              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Education & Qualification</h3>
-              {educationList.map((education, index) => (
-                <div key={index} className="mb-6">
-                  <div className="flex justify-between">
+                  {formData.achievements && (
                     <div>
-                      <h4 className="text-xl font-semibold text-black">{education.degree}</h4>
-                      <p className="text-gray-600">{education.school}</p>
+                      <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Achievements</h3>
+                      <p className="text-black">{formData.achievements}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-gray-600">{education.cityTown}</p>
-                      <p className="text-gray-600">
-                        {education.startMonth} {education.startYear} - {education.endMonth} {education.endYear}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-black">{education.description}</p>
+                  )}
                 </div>
-              ))}
-            </div>
-
-            <div>
-              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Skills</h3>
-              <div className="flex flex-wrap gap-3 justify-start">
-                {selectedSkills.map((skill) => (
-                  <span key={skill} className="bg-gray-100 text-black px-4 py-2 rounded-full text-base">
-                    {skill}
-                  </span>
-                ))}
               </div>
-            </div>
-
-            {formData.achievements && (
-              <div>
-                <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Achievements</h3>
-                <p className="text-black">{formData.achievements}</p>
+              <div className="mt-4 flex justify-end">
+                <Button onClick={generatePDF} className="bg-blue-600 hover:bg-blue-700">
+                  Download PDF
+                </Button>
               </div>
-            )}
-
-            <div>
-              <h3 className="text-2xl font-bold mb-4 text-black border-b-2 border-gray-200 pb-2">Cover Letter</h3>
-              <p className="text-black">{formData.coverLetterDetails}</p>
-            </div>
+            </Card>
           </div>
         </div>
       </div>
